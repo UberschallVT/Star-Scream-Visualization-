@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>STARSCREAM — Uberschall Design Walkround</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Barlow:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --hud-green: #CF753A;        /* VT orange — primary UI color  */
+      --hud-dim:   #f0a265;        /* VT orange dim                 */
+      --dark-bg:   #0d0609;        /* near-black with maroon tint   */
+      --panel-bg:  #3A0002;
+      --accent:    #861F41;        /* VT maroon                     */
+      --text:      #f0e6e0;
+      --border:    rgba(207,117,58,0.25);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--dark-bg); font-family:'Share Tech Mono',monospace; color:var(--text); overflow:hidden; height:100vh; width:100vw; }
+    #canvas-container { position:fixed; inset:0; }
+    canvas { display:block; }
+
+    #header {
+      position:fixed; top:0; left:0; right:0; z-index:100;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 28px; background:#3A0002;
+      border-bottom:2px solid #CF753A;
+    }
+    #header .logo { font-family:'Share Tech Mono',monospace; font-size:1.6rem; letter-spacing:4px; color:#ffffff; }
+    #header .logo span { color:#CF753A; }
+    #header .meta { font-family:'Share Tech Mono',monospace; font-size:0.7rem; color:rgba(255,255,255,0.8); text-align:right; line-height:1.7; }
+
+
+    #viewpoints-panel {
+      position:fixed; left:20px; top:50%; transform:translateY(-50%);
+      z-index:100; display:flex; flex-direction:column; gap:10px;
+    }
+    #viewpoints-panel .vp-header {
+      font-family:'Share Tech Mono',monospace; font-size:0.6rem;
+      color:var(--accent); letter-spacing:4px; padding:0 4px 6px 4px;
+      border-bottom:1px solid var(--border); margin-bottom:2px;
+    }
+    #specs-toggle {
+      font-family:'Share Tech Mono',monospace; font-size:0.72rem; letter-spacing:3px;
+      background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.4); color:#ffffff;
+      padding:10px 18px; cursor:pointer;
+      transition:all 0.2s ease;
+    }
+    #specs-toggle:hover { background:rgba(255,255,255,0.22); border-color:#fff; color:#fff; }
+    #specs-panel { display:none; }
+    #specs-panel.visible { display:block; }
+
+    /* ── Specs panel ── */
+    /* ✏️ FONT SIZE: change font-size on #specs-panel td to make spec rows bigger */
+    #specs-panel {
+      position:fixed; right:20px; top:50%; transform:translateY(-50%);
+      z-index:100; width:290px; background:var(--panel-bg);
+      border:1px solid var(--border); padding:20px 22px;
+    }
+    #specs-panel .sp-tag { font-family:'Share Tech Mono',monospace; font-size:0.65rem;
+      color:var(--accent); letter-spacing:3px; display:block; margin-bottom:8px; }
+    #specs-panel h2 { font-family:'Share Tech Mono',monospace; font-size:1.2rem; letter-spacing:2px;
+      color:#fff; margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px; }
+    #specs-panel table { width:100%; border-collapse:collapse; }
+    #specs-panel tr { border-bottom:1px dashed rgba(207,117,58,0.12); }
+    #specs-panel td { font-family:'Share Tech Mono',monospace; font-size:0.78rem;  /* ✏️ change this for row font size */
+      padding:6px 0; line-height:1.5; }
+    #specs-panel td:first-child { color:var(--hud-dim); width:55%; }
+    #specs-panel td:last-child { color:#fff; text-align:right; font-weight:600; }
+    .vp-btn {
+      background:var(--panel-bg); border:1px solid var(--border); color:var(--hud-green);
+      font-family:'Share Tech Mono',monospace; font-size:0.7rem; letter-spacing:2px;
+      padding:12px 16px; cursor:pointer; transition:all 0.2s ease;
+      text-align:left; width:170px; position:relative; overflow:hidden;
+    }
+    .vp-btn::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--hud-green); transform:scaleY(0); transition:transform 0.2s ease; }
+    .vp-btn:hover,.vp-btn.active { background:rgba(207,117,58,0.10); border-color:var(--hud-green); box-shadow:0 0 18px rgba(207,117,58,0.20); color:#fff; }
+    .vp-btn:hover::before,.vp-btn.active::before { transform:scaleY(1); }
+    .vp-btn .vp-number { font-size:0.6rem; color:var(--accent); display:block; margin-bottom:4px; }
+    .vp-btn .vp-label { font-size:0.75rem; display:block; }
+
+
+
+    #controls-hint {
+      position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+      z-index:100; font-family:'Share Tech Mono',monospace; font-size:0.62rem;
+      color:rgba(207,117,58,0.5); letter-spacing:2px; text-align:center;
+    }
+    #scanlines { position:fixed; inset:0; z-index:50; pointer-events:none; background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px); }
+    .corner { position:fixed; z-index:99; width:30px; height:30px; pointer-events:none; }
+    .corner.tl { top:70px; left:10px; border-top:2px solid var(--hud-green); border-left:2px solid var(--hud-green); }
+    .corner.tr { top:70px; right:10px; border-top:2px solid var(--hud-green); border-right:2px solid var(--hud-green); }
+    .corner.bl { bottom:10px; left:10px; border-bottom:2px solid var(--hud-green); border-left:2px solid var(--hud-green); }
+    .corner.br { bottom:10px; right:10px; border-bottom:2px solid var(--hud-green); border-right:2px solid var(--hud-green); }
+
+    #loading {
+      position:fixed; inset:0; z-index:200; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; background:var(--dark-bg);
+    }
+    #loading .load-title { font-family:'Share Tech Mono',monospace; font-size:2.0rem; color:var(--hud-green); letter-spacing:6px; margin-bottom:6px; }
+    #loading .load-sub { font-family:'Share Tech Mono',monospace; font-size:0.7rem; color:var(--accent); letter-spacing:4px; margin-bottom:24px; }
+    #loading .load-bar-outer { width:300px; height:3px; background:rgba(207,117,58,0.15); }
+    #loading .load-bar-inner { height:100%; background:var(--hud-green); width:0%; transition:width 0.3s ease; }
+    #loading .load-status { font-family:'Share Tech Mono',monospace; font-size:0.65rem; color:var(--hud-dim); margin-top:12px; letter-spacing:2px; }
+
+    .fade-enter { animation:fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-50%) translateX(8px)} to{opacity:1;transform:translateY(-50%) translateX(0)} }
+
+    /* ── Click popup ── */
+    #click-popup {
+      position:fixed; z-index:150; width:260px;
+      background:var(--panel-bg); border:1px solid var(--accent);
+      padding:18px 20px;
+      pointer-events:none; opacity:0;
+      transition:opacity 0.2s ease, transform 0.2s ease;
+      transform:translateY(8px);
+    }
+    #click-popup.visible { opacity:1; transform:translateY(0); }
+    #click-popup .cp-tag { font-family:'Share Tech Mono',monospace; font-size:0.58rem; color:var(--accent); letter-spacing:3px; display:block; margin-bottom:6px; }
+    #click-popup h3 { font-family:'Share Tech Mono',monospace; font-size:1.0rem; letter-spacing:2px; color:#fff; margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+    #click-popup p { font-size:0.78rem; line-height:1.65; color:var(--text); font-weight:300; }
+    #click-popup ul { margin-top:10px; padding-left:0; list-style:none; }
+    #click-popup ul li { font-family:'Share Tech Mono',monospace; font-size:0.65rem; color:var(--hud-green); padding:3px 0; border-bottom:1px dashed rgba(0,255,157,0.1); }
+    #click-popup ul li::before { content:'▸ '; color:var(--accent); }
+    canvas { cursor:crosshair; }
+
+    /* ── Team panel ── */
+    #team-panel { display:none; }
+    #team-panel.visible { display:block; }
+    #team-panel {
+      position:fixed; right:20px; top:50%; transform:translateY(-50%);
+      z-index:100; width:260px; background:var(--panel-bg);
+      border:1px solid var(--border); padding:20px 22px;
+      max-height:80vh; overflow-y:auto;
+    }
+    #team-panel .tp-tag { font-family:'Share Tech Mono',monospace; font-size:0.65rem;
+      color:var(--accent); letter-spacing:3px; display:block; margin-bottom:8px; }
+    #team-panel h2 { font-family:'Share Tech Mono',monospace; font-size:1.1rem; letter-spacing:2px;
+      color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:8px; }
+    .team-member { padding:8px 0; border-bottom:1px dashed rgba(207,117,58,0.12); }
+    .team-member:last-child { border-bottom:none; }
+    .team-member .tm-name { font-family:'Share Tech Mono',monospace; font-size:0.82rem;
+      font-weight:600; color:#fff; }
+    .team-member .tm-role { font-family:'Share Tech Mono',monospace; font-size:0.62rem;
+      color:var(--hud-dim); margin-top:2px; letter-spacing:1px; }
+    #team-toggle:hover { background:rgba(207,117,58,0.10); border-color:var(--hud-green); color:#fff; }
+
+    /* ── Range Map Modal ── */
+    #rangemap-modal {
+      display:none; position:fixed; inset:0; z-index:300;
+      background:rgba(0,0,0,0.80); align-items:center; justify-content:center;
+    }
+    #rangemap-modal.visible { display:flex; }
+    #rangemap-inner {
+      position:relative; width:92vw; height:88vh;
+      border:2px solid #CF753A;
+    }
+    #rangemap-inner iframe { width:100%; height:100%; border:none; display:block; }
+    #rangemap-close {
+      position:absolute; top:-1px; right:-1px; z-index:10;
+      font-family:'Share Tech Mono',monospace; font-size:0.72rem; letter-spacing:3px;
+      background:#CF753A; border:none; color:#fff; padding:8px 16px; cursor:pointer;
+    }
+    #rangemap-close:hover { background:#ffffff; color:#3A0002; }
+  </style>
+</head>
+<body>
+
+  <div id="loading">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
+      <img src="StarScream Logo.png" alt="StarScream" style="height:56px;width:auto;object-fit:contain;">
+      <div class="load-title">STAR <span style="color:var(--accent)">SCREAM</span></div>
+    </div>
+    <div class="load-sub">// TEAM UBERSCHALL — VIRGINIA TECH AOE</div>
+    <div class="load-bar-outer"><div class="load-bar-inner" id="load-bar"></div></div>
+    <div class="load-status" id="load-status">INITIALISING...</div>
+  </div>
+
+  <div id="canvas-container"></div>
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
+  <div id="scanlines"></div>
+
+  <div id="header">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <img src="StarScream Logo.png" alt="StarScream" style="height:48px;width:auto;object-fit:contain;">
+      <div>
+        <div class="logo">STAR<span>SCREAM</span> <span style="font-size:1rem;color:#ffffff">/ TEAM UBERSCHALL</span></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#ffffff;letter-spacing:3px;margin-top:2px;">VIRGINIA TECH — AOE SENIOR DESIGN</div>
+      </div>
+    </div>
+    <!-- toggle buttons -->
+    <div style="display:flex;gap:10px;">
+      <button id="specs-toggle" onclick="toggleSpecs()">
+        <span id="specs-toggle-icon">📋</span> SPECS
+      </button>
+      <button id="team-toggle" onclick="toggleTeam()" style="font-family:'Share Tech Mono',monospace;font-size:0.72rem;letter-spacing:3px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.4);color:#ffffff;padding:10px 18px;cursor:pointer;transition:all 0.2s ease;">
+        <span id="team-toggle-icon">👥</span> TEAM
+      </button>
+      <button onclick="toggleRangeMap()" style="font-family:'Share Tech Mono',monospace;font-size:0.72rem;letter-spacing:3px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.4);color:#ffffff;padding:10px 18px;cursor:pointer;transition:all 0.2s ease;">
+        🗺 RANGE MAP
+      </button>
+    </div>
+  </div>
+
+  <div id="viewpoints-panel">
+    <button class="vp-btn active" onclick="goToView(0)" id="btn0"><span class="vp-label">ISOMETRIC</span></button>
+    <button class="vp-btn" onclick="goToView(1)" id="btn1"><span class="vp-label">FRONT</span></button>
+    <button class="vp-btn" onclick="goToView(2)" id="btn2"><span class="vp-label">TOP DOWN</span></button>
+    <button class="vp-btn" onclick="goToView(3)" id="btn3"><span class="vp-label">RIGHT SIDE</span></button>
+  </div>
+
+  <!-- ✏️ SPECS PANEL — edit values here -->
+  <div id="specs-panel">
+    <h2>STARSCREAM</h2>
+    <table>
+      <tr><td>CRUISE MACH</td>        <td>1.8</td></tr>
+      <tr><td>RANGE</td>              <td>5,100 nm</td></tr>
+      <tr><td>TOFL</td>               <td>10,000 ft</td></tr>
+      <tr><td>PASSENGERS</td>         <td>78 pax</td></tr>
+      <tr><td>TOGW</td>               <td>375,000 lb</td></tr>
+      <tr><td>WINGSPAN</td>           <td>88 ft</td></tr>
+      <tr><td>LENGTH</td>             <td>194 ft</td></tr>
+      <tr><td>ENGINES</td>            <td>4</td></tr>
+      <tr><td>THRUST / ENG</td>       <td>38,000 lbf</td></tr>
+      <tr><td>CRUISE ALTITUDE</td>    <td>57,000 ft</td></tr>
+      <tr><td>MATERIALS</td>          <td>Carbon Fiber Laminate</td></tr>
+    </table>
+  </div>
+
+
+
+  <!-- ✏️ TEAM PANEL — edit names/roles here -->
+  <div id="team-panel">
+    <h2>TEAM UBERSCHALL</h2>
+    <div class="team-member"><div class="tm-name">Matthew McCollum</div><div class="tm-role">Team Lead</div></div>
+    <div class="team-member"><div class="tm-name">Manas Sharma</div><div class="tm-role">Modeling & Simulations</div></div>
+    <div class="team-member"><div class="tm-name">Saipranav Evani</div><div class="tm-role">Modeling & Simulations</div></div>
+    <div class="team-member"><div class="tm-name">Swapnil Rana</div><div class="tm-role">Aerodynamics</div></div>
+    <div class="team-member"><div class="tm-name">Ahmad Rafiek</div><div class="tm-role">Aerodynamics</div></div>
+    <div class="team-member"><div class="tm-name">John Filburn</div><div class="tm-role">Stability & Control</div></div>
+    <div class="team-member"><div class="tm-name">Nick Castalano</div><div class="tm-role">Propulsion</div></div>
+    <div class="team-member"><div class="tm-name">Connor Senn</div><div class="tm-role">Systems</div></div>
+    <div class="team-member"><div class="tm-name">Artemis Corp</div><div class="tm-role">Structures</div></div>
+    <div style="margin-top:5px;text-align:center;"><img src="VT Logo.png" alt="Virginia Tech" style="height:100px;width:auto;object-fit:contain;opacity:1;"></div>
+  </div>
+
+  <!-- Range Map Modal -->
+  <div id="rangemap-modal" onclick="if(event.target===this)toggleRangeMap()">
+    <div id="rangemap-inner">
+      <button id="rangemap-close" onclick="toggleRangeMap()">✕ CLOSE</button>
+      <iframe src="range-map-final.html" title="StarScream Range Map"></iframe>
+    </div>
+  </div>
+
+  <div id="controls-hint">LMB DRAG → ROTATE &nbsp;|&nbsp; RMB DRAG → PAN &nbsp;|&nbsp; SCROLL → ZOOM &nbsp;|&nbsp; CLICK PART → INFO</div>
+
+  <div id="click-popup">
+    <span class="cp-tag" id="cp-tag">// COMPONENT</span>
+    <h3 id="cp-title">—</h3>
+    <p id="cp-desc"></p>
+    <ul id="cp-specs"></ul>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+
+
+    // ══════════════════════════════════════════════════════
+    //  ✏️  CLICK-PART INFO — edit descriptions here
+    // ══════════════════════════════════════════════════════
+    const partData = {
+      AIRFRAME: {
+        tag:'// STRUCTURES',
+        title:'Airframe',
+        desc:'StarScreams Sears–Haack-profiled fuselage minimizes supersonic wave drag, improving aerodynamic efficiency at cruise, as well as implementing advanced composites to reduce overall aircraft weight.',
+        specs:['~8% lower TOGW vs. Concorde','Capable of Transporting 78 Pax','Optimized for Mach 1.8 cruise']
+      },
+      WING: {
+        tag:'// AERODYNAMICS',
+        title:'Wing & Ailerons',
+        desc:'StarScreams cranked-arrow wing with optimized trailing-edge sweep delivers superior supersonic efficiency, with ailerons precisely tuned for roll control across the full flight envelope.',
+        specs:['~9% higher L/D ratio vs. Concorde','Ailerons maintain full control at all phases of the mission']
+      },
+      TAIL: {
+        tag:'// STABILITY & CONTROL',
+        title:'Tail & Rudder',
+        desc:'StarScreams vertical tail and integrated rudder provide robust directional stability and yaw control across all flight phases, from ground roll to supersonic cruise.',
+        specs:['Tail sized for full supersonic yaw control without excessive drag penalty','Rudder designed for control during approach and crosswind conditions']
+      },
+      INTAKE: {
+        tag:'// PROPULSION',
+        title:'Engines & Intake',
+        desc:'StarScreams four modified Olympus 593 engines, paired with optimized supersonic intakes, deliver sustained Mach 1.8 cruise with significantly improved fuel efficiency over Concorde.',
+        specs:['~23% lower TSFC vs. Concorde through fan and mixer integration','Intake geometry tuned for efficient airflow']
+      },
+      GEAR: {
+        tag:'// Weights & Balance',
+        title:'Landing Gear',
+        desc:'StarScreams landing gear is engineered to handle the structural demands of a high-performance supersonic aircraft while retracting cleanly into the aerodynamic fuselage.',
+        specs:['20° tail strike | 15° tip over | 44° turn over','Tricycle configuration','Four-wheel main bogies']
+      }
+    };
+
+    // Maps mesh name → part key (returns null for hangar/unknown meshes)
+    function getPartKey(meshName) {
+      const n = (meshName || '').toLowerCase().trim();
+      if (n === 'body183')                         return 'AIRFRAME';
+      if (n === 'cs wing 1' || n === 'cs wing 2') return 'WING';
+      if (n === 'cs tail')                         return 'TAIL';
+      if (n === 'duct' || n === 'duct (1)')        return 'INTAKE';
+      if (n.startsWith('wheel') || n.startsWith('strut') || n.startsWith('tire')) return 'GEAR';
+      return null;
+    }
+
+    // ── THREE.JS SETUP ──
+    const scene    = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.Fog(0xc9e8f5, 50000, 150000);
+
+    const camera   = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 200000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // ── LIGHTS ──
+    const ambient = new THREE.AmbientLight(0xffffff, 0.05);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xfff8e8, 1.8);
+    sun.position.set(3000, 12000, 18000);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width  = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 100;
+    sun.shadow.camera.far  = 80000;
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -15000;
+    sun.shadow.camera.right= sun.shadow.camera.top    =  15000;
+    scene.add(sun);
+    const skyBounce = new THREE.DirectionalLight(0x9ab8d8, 0.4);
+    skyBounce.position.set(0, 10000, 0);
+    scene.add(skyBounce);
+    const interiorFill = new THREE.HemisphereLight(0xffe8c0, 0x303030, 0.5);
+    scene.add(interiorFill);
+
+    // ── CONTROLS ──
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = true;
+
+    let views = [];
+    let targetCamPos = null, targetLookAt = null;
+
+    function goToView(index) {
+      for (let i = 0; i < 4; i++) document.getElementById('btn'+i).classList.toggle('active', i===index);
+  targetCamPos = views[index].pos.clone();
+  targetLookAt = views[index].target.clone();
+  camera.fov = views[index].fov;
+  camera.updateProjectionMatrix();
+    }
+
+    // ── RAYCASTER + POPUP ──
+    const raycaster     = new THREE.Raycaster();
+    const mouse         = new THREE.Vector2();
+    const popup         = document.getElementById('click-popup');
+    let   planeMeshes   = [];
+    let   lastHighlight = null;
+    const highlightColor = new THREE.Color(0x550000);
+    const origMaterials  = new Map();
+
+    function showPopup(partKey, x, y) {
+      const d = partData[partKey];
+      document.getElementById('cp-tag').textContent   = d.tag;
+      document.getElementById('cp-title').textContent = d.title;
+      document.getElementById('cp-desc').textContent  = d.desc;
+      document.getElementById('cp-specs').innerHTML   = d.specs.map(s => `<li>${s}</li>`).join('');
+      const pw = 260, ph = 200;
+      let px = x + 18, py = y - 10;
+      if (px + pw > window.innerWidth  - 20) px = x - pw - 18;
+      if (py + ph > window.innerHeight - 20) py = window.innerHeight - ph - 20;
+      popup.style.left = px + 'px';
+      popup.style.top  = py + 'px';
+      popup.classList.add('visible');
+    }
+
+    function hidePopup() { popup.classList.remove('visible'); }
+
+    function highlightMesh(mesh) {
+      if (lastHighlight === mesh) return;
+      if (lastHighlight) {
+        const orig = origMaterials.get(lastHighlight);
+        if (orig) lastHighlight.material = orig;
+      }
+      if (!mesh) { lastHighlight = null; return; }
+      if (!origMaterials.has(mesh)) origMaterials.set(mesh, mesh.material);
+      const clone = mesh.material.clone();
+      clone.emissive = highlightColor;
+      clone.emissiveIntensity = 0.2;
+      mesh.material = clone;
+      lastHighlight = mesh;
+    }
+
+    function registerPlaneMeshes(planeObj) {
+      planeObj.traverse(child => {
+        if (child.isMesh && getPartKey(child.name) !== null) {
+          planeMeshes.push(child);
+        }
+      });
+    }
+
+    let isDragging = false;
+    let mouseDownPos = { x:0, y:0 };
+
+    renderer.domElement.addEventListener('mousemove', e => {
+      if (e.buttons > 0) {
+        const dx = e.clientX - mouseDownPos.x, dy = e.clientY - mouseDownPos.y;
+        if (Math.sqrt(dx*dx + dy*dy) > 4) isDragging = true;
+      }
+      mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(planeMeshes, false);
+      if (hits.length > 0 && getPartKey(hits[0].object.name)) {
+        highlightMesh(hits[0].object);
+        renderer.domElement.style.cursor = 'pointer';
+      } else {
+        highlightMesh(null);
+        renderer.domElement.style.cursor = 'crosshair';
+      }
+    });
+
+    renderer.domElement.addEventListener('mousedown', e => {
+      mouseDownPos = { x:e.clientX, y:e.clientY };
+      isDragging = false;
+    });
+
+    renderer.domElement.addEventListener('click', e => {
+      if (isDragging) { isDragging = false; return; }
+      mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(planeMeshes, false);
+      if (hits.length > 0) {
+        const key = getPartKey(hits[0].object.name);
+        if (key) { showPopup(key, e.clientX, e.clientY); return; }
+      }
+      hidePopup();
+    });
+
+    // ── LOAD PLANE (MTL first, then OBJ) ──
+    const mtlLoader = new THREE.MTLLoader();
+    document.getElementById('load-status').textContent = 'LOADING MATERIALS...';
+    document.getElementById('load-bar').style.width = '10%';
+
+    mtlLoader.load(
+      'StarScream.mtl',
+      function(materials) {
+        materials.preload();
+        document.getElementById('load-bar').style.width = '20%';
+        document.getElementById('load-status').textContent = 'LOADING STAR SCREAM...';
+
+        const objLoader = new THREE.OBJLoader();
+        objLoader.setMaterials(materials);
+
+        objLoader.load(
+          'StarScream.obj',
+          function(planeObj) {
+            document.getElementById('load-bar').style.width = '55%';
+            document.getElementById('load-status').textContent = 'PROCESSING GEOMETRY...';
+
+            planeObj.traverse(child => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (!child.material || (Array.isArray(child.material) && child.material.length === 0)) {
+                  child.material = new THREE.MeshPhongMaterial({
+                    color: 0x7a8fa0, specular: 0x223344, shininess: 80, side: THREE.DoubleSide
+                  });
+                }
+              }
+            });
+
+            planeObj.rotation.x = -Math.PI / 2;
+            planeObj.updateMatrixWorld(true);
+
+            const bb  = new THREE.Box3().setFromObject(planeObj);
+            const sz  = new THREE.Vector3(); bb.getSize(sz);
+            const bc  = new THREE.Vector3(); bb.getCenter(bc);
+
+            const pWing = sz.x;
+            const pH    = sz.y;
+            const pLen  = sz.z;
+
+            planeObj.position.x = -bc.x;
+            planeObj.position.y = -bb.min.y + 110;
+            planeObj.position.z = -bc.z - pLen * 4.0;
+            scene.add(planeObj);
+
+            // ══════════════════════════════════════════════════
+            //  ✏️  NOSE GEAR MANUAL ADJUSTMENTS
+            //  All values in mm. Adjust and reload to see changes.
+            //  Z axis = vertical (up/down) after plane rotation
+            //  X axis = left/right, Y axis = forward/backward
+            // ══════════════════════════════════════════════════
+            const noseStrutScaleZ  = 1.3;   // ✏️ strut length (1.0 = original, 1.5 = 50% longer)
+            const noseStrutOffsetZ = 0;     // ✏️ strut up/down
+            const noseWheelOffsetZ = -125;     // ✏️ wheels up/down
+
+            planeObj.traverse(child => {
+              const n = child.name;
+              if (n === 'strut (5)') {
+                child.scale.set(1, 1, noseStrutScaleZ);
+                child.position.z += noseStrutOffsetZ;
+              }
+              if (n === 'wheel (8)'    || n === 'tire (8)'     ||
+                  n === 'tire (1) (5)' || n === 'wheel (1) (3)') {
+                child.position.z += noseWheelOffsetZ;
+              }
+            });
+
+            registerPlaneMeshes(planeObj);
+
+            // ── LOAD HANGAR ──
+            document.getElementById('load-bar').style.width = '65%';
+            document.getElementById('load-status').textContent = 'LOADING HANGAR...';
+
+            const hangarObjLoader = new THREE.OBJLoader();
+            const hangarMtlLoader = new THREE.MTLLoader();
+            hangarMtlLoader.load('Arched_hangar.mtl', function(hMats) {
+              hMats.preload(); hangarObjLoader.setMaterials(hMats);
+            }, undefined, function() {});
+
+            hangarObjLoader.load(
+              'Arched_hangar.obj',
+              function(hangarObj) {
+                document.getElementById('load-bar').style.width = '90%';
+                document.getElementById('load-status').textContent = 'BUILDING SCENE...';
+
+                const texLoader = new THREE.TextureLoader();
+
+                const hangarBaseColor = texLoader.load('GWC Zinc Hammered Finish_BaseColor.jpg');
+                const hangarMetallic  = texLoader.load('GWC Zinc Hammered Finish_Metallic.jpg');
+                const hangarNormal    = texLoader.load('GWC Zinc Hammered Finish_Normal.jpg');
+                const hangarRoughness = texLoader.load('GWC Zinc Hammered Finish_Roughness.jpg');
+
+                const hangarShellMat = new THREE.MeshStandardMaterial({
+                  map:          hangarBaseColor,
+                  metalnessMap: hangarMetallic,
+                  normalMap:    hangarNormal,
+                  roughnessMap: hangarRoughness,
+                  metalness:    0.6,
+                  roughness:    0.7,
+                  side:         THREE.DoubleSide
+                });
+
+                // Diamond plate metal floor textures
+                const floorColor     = texLoader.load('Metal049C_4K-JPG_Color.jpg');
+                const floorMetalness = texLoader.load('Metal049C_4K-JPG_Metalness.jpg');
+                const floorNormalT   = texLoader.load('Metal049C_4K-JPG_NormalGL.jpg');
+                const floorRoughness = texLoader.load('Metal049C_4K-JPG_Roughness.jpg');
+
+                [floorColor, floorMetalness, floorNormalT, floorRoughness].forEach(t => {
+                  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+                  t.repeat.set(12, 12);
+                });
+
+                const floorMat = new THREE.MeshStandardMaterial({
+                  map:          floorColor,
+                  metalnessMap: floorMetalness,
+                  normalMap:    floorNormalT,
+                  roughnessMap: floorRoughness,
+                  metalness:    0.8,
+                  roughness:    0.4,
+                  side:         THREE.DoubleSide
+                });
+
+                // Apply materials — doors kept visible, floor on foundation
+                hangarObj.traverse(child => {
+                  if (child.isMesh) {
+                    child.castShadow    = true;
+                    child.receiveShadow = true;
+                    const name = (child.name || '').toLowerCase();
+                    // Log all mesh names so we can verify floor detection
+                    console.log('HANGAR MESH:', child.name);
+                    if (name === 'gate_door_r' || name === 'gate_door_l' ||
+                        name === 'door_front'  || name === 'door_back') {
+                      child.visible = false;
+                    } else if (name === 'foundation' || name.includes('floor') ||
+                               name.includes('ground') || name.includes('slab')) {
+                      console.log('  → applying floor mat to:', child.name);
+                      child.material = floorMat;
+                      // copy uv → uv2 so aoMap renders correctly
+                      if (child.geometry.attributes.uv) {
+                        child.geometry.setAttribute('uv2', child.geometry.attributes.uv);
+                      }
+                    } else {
+                      child.material = hangarShellMat;
+                    }
+                  }
+                });
+
+                // Scale hangar to fit around plane
+                const hbb = new THREE.Box3().setFromObject(hangarObj);
+                const hsz = new THREE.Vector3(); hbb.getSize(hsz);
+                const targetW = pWing * 6.0;
+                const targetD = pLen  * 3.0;
+                const targetH = pH    * 7.0;
+                const uniformScale = Math.min(targetW/hsz.x, targetD/hsz.z, targetH/hsz.y);
+                hangarObj.scale.setScalar(uniformScale);
+                hangarObj.updateMatrixWorld(true);
+
+                const hbb2 = new THREE.Box3().setFromObject(hangarObj);
+                const hbc2 = new THREE.Vector3(); hbb2.getCenter(hbc2);
+
+                const CY      = pH * 0.6;
+                const planeCZ = planeObj.position.z;
+                const trueCZ  = planeCZ - pLen * 0.5;  // real geometric centre
+
+                hangarObj.position.x = -hbc2.x;
+                hangarObj.position.y = -hbb2.min.y;
+                hangarObj.position.z = (planeCZ + pLen * 0.7) - hbb2.max.z;
+
+                scene.add(hangarObj);
+
+                const insideZ = planeCZ - pLen * 0.7;
+
+                views = [
+                  // Isometric — camera behind & left, looking at true centre
+                  { pos: new THREE.Vector3(-pWing*1.1, pH*2.2,    insideZ  ), target: new THREE.Vector3(0, CY, trueCZ),         fov: 55  },
+                  // Front — camera in front of nose, looking back toward true centre
+                  { pos: new THREE.Vector3( 0,          CY,        planeCZ+pLen*0.8 ), target: new THREE.Vector3(0, CY, trueCZ), fov: 45  },
+                  // Top down — wide FOV to see full wingspan without going too high
+                  { pos: new THREE.Vector3( 0,          pWing*1, insideZ - 2000   ), target: new THREE.Vector3(0, 0,  trueCZ + 1000),        fov: 85 },
+                  // Right side — level with fuselage, centred on true centre
+                  { pos: new THREE.Vector3( pWing*1.6,  CY,        trueCZ + 300   ), target: new THREE.Vector3(0, CY, trueCZ + 300),         fov: 50  },
+                ];
+
+                controls.target.set(0, CY, trueCZ);
+                camera.position.copy(views[0].pos);
+                controls.update();
+
+                document.getElementById('load-bar').style.width = '100%';
+                document.getElementById('load-status').textContent = 'READY';
+                setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 400);
+                
+              },
+              function(xhr) {
+                if (xhr.total) document.getElementById('load-bar').style.width = (xhr.loaded/xhr.total*20+65)+'%';
+                document.getElementById('load-status').textContent = 'LOADING HANGAR... '+Math.round(xhr.loaded/1024)+' KB';
+              },
+              function(err) {
+                console.warn('Hangar load failed:', err);
+                const CY = pH*0.6, planeCZ = planeObj.position.z, insideZ = planeCZ - pLen*0.7;
+                views = [
+                  { pos: new THREE.Vector3(-pWing*1.1, pH*2.2,    insideZ          ), target: new THREE.Vector3(0,CY,planeCZ), fov: 55  },
+                  { pos: new THREE.Vector3( 0,          CY,        planeCZ+pLen*0.8 ), target: new THREE.Vector3(0,CY,planeCZ-pLen*0.2), fov: 45 },
+                  { pos: new THREE.Vector3( 0,          pWing*2.2, planeCZ          ), target: new THREE.Vector3(0,0, planeCZ), fov: 100 },
+                  { pos: new THREE.Vector3( pWing*1.4,  CY,        planeCZ          ), target: new THREE.Vector3(0,CY,planeCZ), fov: 50  },
+                ];
+                controls.target.set(0,CY,planeCZ);
+                camera.position.copy(views[0].pos);
+                controls.update();
+                document.getElementById('load-bar').style.width = '100%';
+                document.getElementById('load-status').textContent = 'HANGAR NOT FOUND';
+                setTimeout(() => { document.getElementById('loading').style.display='none'; }, 800);
+                
+              }
+            );
+          },
+          function(xhr) {
+            if (xhr.total) document.getElementById('load-bar').style.width = (xhr.loaded/xhr.total*30+20)+'%';
+            document.getElementById('load-status').textContent = 'LOADING STAR SCREAM... '+Math.round(xhr.loaded/1024)+' KB';
+          },
+          function(err) {
+            document.getElementById('load-status').textContent = 'ERROR LOADING PLANE MODEL';
+            console.error(err);
+          }
+        );
+      },
+      undefined,
+      function(err) {
+        console.warn('MTL load failed, using default material:', err);
+        document.getElementById('load-bar').style.width = '20%';
+        const objLoader = new THREE.OBJLoader();
+        objLoader.load('StarScream.obj', function(planeObj) {
+          planeObj.traverse(child => {
+            if (child.isMesh) {
+              child.material = new THREE.MeshPhongMaterial({ color:0x7a8fa0, specular:0x223344, shininess:80, side:THREE.DoubleSide });
+              child.castShadow = true; child.receiveShadow = true;
+            }
+          });
+          planeObj.rotation.x = -Math.PI / 2;
+          planeObj.updateMatrixWorld(true);
+          const bb = new THREE.Box3().setFromObject(planeObj);
+          const sz = new THREE.Vector3(); bb.getSize(sz);
+          const bc = new THREE.Vector3(); bb.getCenter(bc);
+          planeObj.position.x = -bc.x;
+          planeObj.position.y = -bb.min.y;
+          planeObj.position.z = -bc.z - sz.z * 4.0;
+          scene.add(planeObj);
+          registerPlaneMeshes(planeObj);
+          const pWing=sz.x, pH=sz.y, pLen=sz.z;
+          const CY=pH*0.6, planeCZ=planeObj.position.z, insideZ=planeCZ-pLen*0.7;
+          views = [
+            { pos: new THREE.Vector3(-pWing*1.1, pH*2.2,    insideZ          ), target: new THREE.Vector3(0,CY,planeCZ), fov: 55  },
+            { pos: new THREE.Vector3( 0,          CY,        planeCZ+pLen*0.8 ), target: new THREE.Vector3(0,CY,planeCZ-pLen*0.2), fov: 45 },
+            { pos: new THREE.Vector3( 0,          pWing*2.2, planeCZ          ), target: new THREE.Vector3(0,0, planeCZ), fov: 100 },
+            { pos: new THREE.Vector3( pWing*1.4,  CY,        planeCZ          ), target: new THREE.Vector3(0,CY,planeCZ), fov: 50  },
+          ];
+          controls.target.set(0,CY,planeCZ);
+          camera.position.copy(views[0].pos);
+          controls.update();
+          document.getElementById('load-bar').style.width = '100%';
+          document.getElementById('load-status').textContent = 'READY';
+          setTimeout(() => { document.getElementById('loading').style.display='none'; }, 400);
+          
+        }, undefined, err => { document.getElementById('load-status').textContent='ERROR LOADING MODEL'; console.error(err); });
+      }
+    );
+
+    // ── PANEL TOGGLES ──
+    function toggleSpecs() {
+      const panel = document.getElementById('specs-panel');
+      const teamPanel = document.getElementById('team-panel');
+      teamPanel.classList.remove('visible');
+      document.getElementById('team-toggle-icon').textContent = '👥';
+      panel.classList.toggle('visible');
+      document.getElementById('specs-toggle-icon').textContent =
+        panel.classList.contains('visible') ? '✕' : '📋';
+    }
+    function toggleTeam() {
+      const panel = document.getElementById('team-panel');
+      const specsPanel = document.getElementById('specs-panel');
+      specsPanel.classList.remove('visible');
+      document.getElementById('specs-toggle-icon').textContent = '📋';
+      panel.classList.toggle('visible');
+      document.getElementById('team-toggle-icon').textContent =
+        panel.classList.contains('visible') ? '✕' : '👥';
+    }
+
+    // ── RANGE MAP MODAL ──
+    function toggleRangeMap() {
+      document.getElementById('rangemap-modal').classList.toggle('visible');
+    }
+
+    // ── ANIMATION LOOP ──
+    function animate() {
+      requestAnimationFrame(animate);
+      if (targetCamPos) {
+        camera.position.lerp(targetCamPos, 0.07);
+        controls.target.lerp(targetLookAt, 0.07);
+        if (camera.position.distanceTo(targetCamPos) < 10) targetCamPos = null;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+
+  </script>
+</body>
+</html>
